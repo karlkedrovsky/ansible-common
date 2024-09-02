@@ -1,0 +1,79 @@
+---
+- hosts: all
+  gather_facts: yes
+
+  tasks:
+    - name: Perform a distro upgrade
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: yes
+      become: yes
+
+    - name: Remove dependencies that are no longer needed
+      ansible.builtin.apt:
+        autoremove: yes
+      become: yes
+
+    - name: Install software
+      ansible.builtin.apt:
+        name: "{{ item }}"
+      loop:
+        - zsh
+        - git
+        - stow
+        - tmux
+        - neovim
+        - bat
+        - zoxide
+        - zip
+        - unzip
+      become: yes
+
+    - name: Update default shell
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        shell: /usr/bin/zsh
+      become: yes
+
+    # This may be a bit brittle as omp can be installed in a few places.
+    - name: Check to see if oh-my-posh is installed
+      stat:
+        path: "{{ ansible_env.HOME }}/.local/bin/oh-my-posh"
+      register: omp_stat_result
+
+    - name: Fetch oh-my-posh installer
+      ansible.builtin.uri:
+        url: https://ohmyposh.dev/install.sh
+        return_content: yes
+      register: omp_installer
+      when: not omp_stat_result.stat.exists
+
+    - name: Install oh-my-posh
+      ansible.builtin.shell:
+        cmd: bash -s
+        stdin: "{{ omp_installer.content }}"
+      when: not omp_stat_result.stat.exists
+
+    - name: Clone dotfiles repo
+      ansible.builtin.git:
+        repo: https://github.com/karlkedrovsky/dotfiles.git
+        dest: "{{ ansible_env.HOME }}/dotfiles"
+
+    - name: Run stow
+      ansible.builtin.shell:
+        chdir: "{{ ansible_env.HOME }}/dotfiles"
+        cmd: "stow . --verbose=2"
+      register: result
+      changed_when: 'result.stderr is search("LINK: ")'
+
+    - name: Check if a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+        get_checksum: no
+      register: reboot_required_file
+      become: yes
+
+    - name: Reboot the server (if necessary)
+      ansible.builtin.reboot:
+      when: reboot_required_file.stat.exists == true
+      become: yes
