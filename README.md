@@ -12,9 +12,8 @@ ansible
 It is also assumed that there is a user named "karl" on the server,
 which is the case for any servers created with my cloud-init template.
 
-There also needs to be a ssh key named id_rsa_proxmox on the server,
-and in the user's .ssh directory on the machine running
-ansible-playbook.
+There also needs to be a ssh key named proxmox on the server, and in
+the user's .ssh directory on the machine running ansible-playbook.
 
 ## Usage
 
